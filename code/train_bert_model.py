@@ -3,9 +3,12 @@ Name: train_bert_model.py
 Author: Mark van den Hoorn
 Desc: Trains a bert model on child-directed utterances. The age of the children
 increases incrementally, models get made with every increment.
+Needs 1 argument to be run: filtered/unfiltered. Example of how to run:
+python train_bert_model.py unfiltered
 """
 import torch
 import os
+import argparse
 from transformers import Trainer, TrainingArguments
 from transformers import LineByLineTextDataset
 from transformers import DataCollatorForLanguageModeling
@@ -68,7 +71,7 @@ def train_single_model(model, tokenizer, datafile, name, modelconfig,
     trainer.save_model(os.path.join(outputpath, name))
 
 def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
-    tokenizer_path, max_phase, input_fnames="", output_fnames=""):
+    tokenizer_path, age_ranges, data_type):
     """
     Trains a BERT model incrementally over multiple sessions/phases, by
     age ranges of LDP corpus data.
@@ -84,53 +87,65 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
     modelconfig.vocab_size = tokenizer.vocab_size
     model = create_model(modelconfig)
 
-    # loop through each training phase/session
-    for session in range(1, max_phase + 1):
-        print(f"\n Training for session {session}:")
+    # set input and output names based on argparsed choice
+    input_fnames = f"{data_type}_train_data_up_to_{{}}_months.txt"
+    output_fnames = f"{data_type}_model_up_to_{{}}_months"
 
-        datafile = os.path.join(path_to_data, input_fnames.format(session))
-        output_name = output_fnames.format(session)
+    for i, age_limit in enumerate(age_ranges):
+        session = i + 1
+        print(f"\n--- Training for Session {session} (Age <= {age_limit} months) ---")
 
+        # create file name
+        datafile = os.path.join(path_to_data, input_fnames.format(age_limit))
+        # output model with correct name
+        output_name = output_fnames.format(age_limit)
+
+        # train model
         train_single_model(model, tokenizer, datafile, output_name, modelconfig,
-            trainingconfig, output_path, tokenizer_path)
+                           trainingconfig, output_path, tokenizer_path)
 
+if __name__ == "__main__":
+    # argparser to specify whether you want to use filtered or unfiltered data
+    parser = argparse.ArgumentParser(description="Use Filtered or Unfiltered data for model training.")
+    parser.add_argument(
+        "data_type",
+        type=str,
+        choices=["filtered", "unfiltered"],
+        help="Specify whether to use 'filtered' or 'unfiltered' training data."
+    )
+    args = parser.parse_args()
 
+    # BERT configuration
+    modelconfig = BertConfig(
+        seed=29032001,
+        num_attention_heads=2,
+        num_hidden_layers=1,
+        type_vocab_size=1
+    )
 
+    # trainer configuration
+    trainingconfig = TrainingArguments(
+        overwrite_output_dir=True,
+        per_device_train_batch_size = 64,
+        save_steps=10_000,
+        save_total_limit=2,
+        prediction_loss_only=True,
+        resume_from_checkpoint=None
+    )
 
+    # set age ranges for file naming
+    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54]
 
+    # set paths for input, output and tokenizer
+    current_wd = os.path.dirname(os.path.abspath(__file__))
+    path_to_data = os.path.join(current_wd, '..', 'data')
+    output_path = os.path.join(current_wd, '..', 'models')
+    tokenizer_path =os.path.join(current_wd, '..', 'custom_tokenizer')
 
-# BERT configuration
-modelconfig = BertConfig(
-    seed=29032001,
-    num_attention_heads=2,
-    num_hidden_layers=1,
-    type_vocab_size=1
-)
+    # check for GPU and set device
+    print("Cuda available:", torch.cuda.is_available())
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# trainer configuration
-trainingconfig = TrainingArguments(
-    overwrite_output_dir=True,
-    per_device_train_batch_size = 64,
-    save_steps=10_000,
-    save_total_limit=2,
-    prediction_loss_only=True,
-    resume_from_checkpoint=None
-)
-
-# set paths for input, output and tokenizer
-current_wd = os.path.dirname(os.path.abspath(__file__))
-path_to_data = os.path.join(current_wd, '..', 'data')
-output_path = os.path.join(current_wd, '..', 'models')
-tokenizer_path =os.path.join(current_wd, '..', 'custom_tokenizer')
-
-# set name formats for input and output
-input_fnames = "train_data_up_to_{}_months.txt"
-output_fnames = "model_output_session_{}"
-
-# check for GPU and set device
-print("Cuda available:", torch.cuda.is_available())
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# train incremental models
-train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
-    tokenizer_path, 2, input_fnames, output_fnames)
+    # train incremental models
+    train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
+        tokenizer_path, age_ranges, args.data_type)

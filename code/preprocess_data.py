@@ -174,10 +174,10 @@ def assign_determiner_types(utterances_df, lookahead = 4):
                         # stop if we find a noun
                         break
 
-    # Now we need to ensure each noun gets assigned only 1 determiner
+    # now we need to ensure each noun gets assigned only 1 determiner
     for noun, types in noun_to_types.items():
         if len(types) > 1:
-            # Assign one random determiner if multiple types are found
+            # assign one random determiner if multiple types are found
             noun_to_types[noun] = {random.choice(list(types))}
 
     return noun_to_types
@@ -237,45 +237,52 @@ def filter_by_age_range(utterances_df, max_age):
     """
     return utterances_df[utterances_df['age_months'] <= max_age]
 
-def save_age_based_datasets(utterances_df, age_ranges):
+def save_age_based_datasets(utterances_df, age_ranges, filename_prefix):
     """
     Saves filtered datasets based on different age ranges to separate text files,
     including only the sentence column (no age info).
     """
-    for max_age in tqdm(age_ranges, desc="Saving train sets by age range"):
+    output_dir = os.getcwd()
+
+    # save data per age range
+    for max_age in tqdm(age_ranges, desc=f"Saving train sets by age range"):
         filtered_data = filter_by_age_range(utterances_df, max_age)
+        output_filename = os.path.join(output_dir, f"{filename_prefix}_up_to_{max_age}_months.txt")
+
+        # save only the 'utt' column
         filtered_data['utt'].to_csv(
-            f"train_data_up_to_{max_age}_months.txt",
+            output_filename,
             index=False,
             header=False
         )
 
 if __name__ == "__main__":
-    # set working directory and load data
-    set_wd()
-    parent_utterances, child_utterances = import_data("ldp_data.csv")
-
     # load pos tagger from spacy
     nlp = spacy.load('en_core_web_sm')
+
+    # set working directory and load data
+    set_wd()
+    parent_utterances_raw, child_utterances_raw = import_data("ldp_data.csv")
 
     # import the first name data into a list
     first_names = list(pd.read_csv("first_names.csv")['Name'])
 
     # create lemmatized datasets, replace MASK with random names
-    parent_utterances = first_preprocess(parent_utterances)
-    child_utterances = first_preprocess(child_utterances)
+    parent_utterances_processed = first_preprocess(parent_utterances_raw)
+    child_utterances_processed = first_preprocess(child_utterances_raw)
 
-    # save current parent data as unedited data, also serves as tokenizer train data
-    parent_utterances.to_csv("train_data_all_unedited.txt", index = False, header = False)
+    # save current parent data as tokenizer train data
+    tokenizer_train_file = "tokenizer_train_data.txt"
+    parent_utterances_processed.to_csv(tokenizer_train_file, index = False, header = False)
 
     # pos tag child data, then mask determiners and save test sets
-    pos_tagged_child = pos_tagging(child_utterances)
+    pos_tagged_child = pos_tagging(child_utterances_processed)
     child_test_regular, child_test_masked = filter_determiner_sentences(pos_tagged_child)
     child_test_regular.to_csv("test_data_regular.txt", index = False, header = False)
     child_test_masked.to_csv("test_data_masked.txt", index = False, header = False)
 
     # create parent utt dataset where each noun only appears with 1 determiner
-    pos_tagged_parent = pos_tagging(parent_utterances)
+    pos_tagged_parent = pos_tagging(parent_utterances_processed)
     pair_dict = assign_determiner_types(pos_tagged_parent)
     filtered_utterances = filter_det_noun_pairs(pos_tagged_parent, pair_dict)
 
@@ -283,4 +290,7 @@ if __name__ == "__main__":
     age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54]
 
     # create training data sets per age cap
-    save_age_based_datasets(filtered_utterances, age_ranges)
+    filtered_prefix = "filtered_train_data"
+    unfiltered_prefix = "unfiltered_train_data"
+    save_age_based_datasets(filtered_utterances, age_ranges, filtered_prefix)
+    save_age_based_datasets(parent_utterances_processed, age_ranges, unfiltered_prefix)

@@ -34,7 +34,7 @@ def create_tokenizer(files):
 set_wd()
 
 # create and train the tokenizer
-tokenizer = create_tokenizer(["train_data_all_unedited.txt"])
+tokenizer = create_tokenizer(["tokenizer_train_data.txt"])
 
 # save tokenizer
 save_dir = os.path.join(os.getcwd(), "..", "custom_tokenizer")
