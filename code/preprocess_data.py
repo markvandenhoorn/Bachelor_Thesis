@@ -13,9 +13,10 @@ import string
 import random
 import spacy
 import pandas as pd
-# python -m spacy download en_core_web_sm to download
+from tqdm import tqdm
 
-### TODO: import_data remove first 1000 thingies and do everything
+### TODO: filter test sentences based on nouns that also appear in training
+### TODO: Run code on all data (check import_data)
 
 def set_wd():
     # function to set current working directory to data folder
@@ -33,66 +34,56 @@ def import_data(filename):
     # read data, remove NaN and divide into parent and child data
     data = pd.read_csv(filename, index_col = 0)
     data = data[0:10000]
-    parent_data = data.dropna(subset=["p_utts"])
-    child_data = data.dropna(subset=["c_utts"])
+    parent_data = data.dropna(subset=["p_utts", "age_months"])
+    child_data = data.dropna(subset=["c_utts", "age_months"])
 
     # remove rows where utterance is only MASK and save only utterances
-    parent_utterances = parent_data[~parent_data["p_utts"].apply(is_only_mask)]['p_utts']
-    child_utterances = child_data[~child_data["c_utts"].apply(is_only_mask)]['c_utts']
+    parent_utterances = parent_data[~parent_data["p_utts"].apply(is_only_mask)][["p_utts", "age_months"]]
+    child_utterances = child_data[~child_data["c_utts"].apply(is_only_mask)][["c_utts", "age_months"]]
 
     # replace every 'an' with 'a'
-    parent_utterances = parent_utterances.str.replace(r'\ban\b', 'a', regex=True)
-    parent_utterances = parent_utterances.str.replace(r'\bAn\b', 'A', regex=True)
-    child_utterances = child_utterances.str.replace(r'\ban\b', 'a', regex=True)
-    child_utterances = child_utterances.str.replace(r'\bAn\b', 'A', regex=True)
+    parent_utterances['p_utts'] = parent_utterances['p_utts'].str.replace(r'\ban\b', 'a', regex=True)
+    parent_utterances['p_utts'] = parent_utterances['p_utts'].str.replace(r'\bAn\b', 'A', regex=True)
+    child_utterances['c_utts'] = child_utterances['c_utts'].str.replace(r'\ban\b', 'a', regex=True)
+    child_utterances['c_utts'] = child_utterances['c_utts'].str.replace(r'\bAn\b', 'A', regex=True)
 
     return parent_utterances, child_utterances
 
-def strip_punctuation_and_lemmatize(text):
-    """
-    Takes a string, removes extraneous punctuation, and lemmatizes the words.
-    """
-    # let spacy process text
-    doc = nlp(text)
+def first_preprocess(utterances):
+    """strip punctuation, lemmatize and replace MASK with random names"""
+    utt_column = 'p_utts' if 'p_utts' in utterances.columns else 'c_utts'
+    texts = utterances[utt_column].tolist()
 
-    lemmatized_tokens = []
+    # batch process with spacy, include progress bar
+    docs = nlp.pipe(texts, batch_size=1000, n_process=1)
+    docs = tqdm(docs, total=len(texts), desc="Lemmatizing, removing punctuation and replacing MASK")
 
-    # go through each 'token'
-    for token in doc:
-        # if it is a normal word, lemmatize it and add to list
-        if not token.is_punct:
-            lemmatized_tokens.append(token.lemma_)
+    # lemmatize, strip punctuation
+    lemmatized = []
+    for doc in docs:
+        lemmatized_tokens = [token.lemma_ for token in doc if not token.is_punct]
+        cleaned_text = " ".join(lemmatized_tokens)
+        lemmatized.append(cleaned_text)
 
-    # re-create the sentence from the list
-    cleaned_text = " ".join(lemmatized_tokens)
+    # replace mask with random name
+    replaced = [re.sub(r"MASK", lambda _: random.choice(first_names), text) for text in lemmatized]
 
-    return cleaned_text
+    return pd.DataFrame({'utt': replaced, 'age_months': utterances['age_months'].values})
 
-def replace_mask_with_random(text):
-    # replace MASK with a random first name
-    return re.sub(r"MASK", lambda _: random.choice(first_names), text)
-
-def replace_mask_data(utterances):
-    # strip punctuation, lemmatize and replace MASK with random names
-    utterances = utterances.apply(strip_punctuation_and_lemmatize)
-    return utterances.apply(replace_mask_with_random)
-
-def pos_tagging(utterances):
+def pos_tagging(utterances_df):
     """
     Tags each word in the sentence as the part of speech that it is.
     Returns pd Series of tagged sentences.
     """
-    tagged_utterances = []
-    for sentence in utterances:
-        # pos tag the sentence
+    tagged = []
+    for sentence in tqdm(utterances_df['utt'], desc="POS tagging"):
         doc = nlp(sentence)
+        tagged.append([(token.text, token.pos_) for token in doc])
+    utterances_df = utterances_df.copy()
+    utterances_df['tagged'] = tagged
+    return utterances_df
 
-        # create tuple of word + POS tag for every word
-        tagged_utterances.append([(token.text, token.pos_) for token in doc])
-
-    return pd.Series(tagged_utterances)
-
-def filter_determiner_sentences(tagged_sentences):
+def filter_determiner_sentences(utterances_df):
     """
     Keeps only sentences where:
     - A determiner ('DET') is followed by a noun ('NOUN'), or
@@ -104,27 +95,31 @@ def filter_determiner_sentences(tagged_sentences):
     """
     valid_determiners = ['a', 'the', 'A', 'The']
     masked_sentences = []
-    sentences = []
+    regular_sentences = []
+    age_months_masked = []
+    age_months_regular = []
 
-    # extract words and pos tags from sentences
-    for tagged_sentence in tagged_sentences:
+    # iterate through each sentence and its corresponding 'age_months'
+    for i, tagged_sentence in tqdm(enumerate(utterances_df['tagged']), total=len(utterances_df), desc="Filtering out sentences without determiner + noun"):
         words = [word for word, tag in tagged_sentence]
         pos_tags = [tag for word, tag in tagged_sentence]
 
-        # check if the sentence contains any determiner (DET), skip if no
+        # skip sentences without a determiner (DET)
         if 'DET' not in pos_tags:
             continue
 
-        # keep only sentences with 'a' or 'the' as the determiner
+        # process valid determiners ('a' or 'the')
         for i in range(len(pos_tags)):
             if pos_tags[i] == 'DET' and words[i].lower() in valid_determiners:
                 # check if the DET is followed by NOUN
                 if i + 1 < len(pos_tags) and pos_tags[i + 1] == 'NOUN':
-                    # mask the determiner and add sentence to the lists
+                    # mask the determiner and add sentence to masked list
                     masked_words = words.copy()
                     masked_words[i] = '[MASK]'
                     masked_sentences.append(" ".join(masked_words))
-                    sentences.append(" ".join(words))
+                    regular_sentences.append(" ".join(words))
+                    age_months_masked.append(utterances_df['age_months'].iloc[i])
+                    age_months_regular.append(utterances_df['age_months'].iloc[i])
                     break
 
                 # check if DET is followed by other token, then NOUN
@@ -133,79 +128,132 @@ def filter_determiner_sentences(tagged_sentences):
                     and pos_tags[i + 1] not in ['DET', 'NOUN']
                     and pos_tags[i + 2] == 'NOUN'
                 ):
-                    # mask the determiner and add sentence to the list
+                    # mask the determiner and add sentence to masked list
                     masked_words = words.copy()
                     masked_words[i] = '[MASK]'
                     masked_sentences.append(" ".join(masked_words))
-                    sentences.append(" ".join(words))
+                    regular_sentences.append(" ".join(words))
+                    age_months_masked.append(utterances_df['age_months'].iloc[i])
+                    age_months_regular.append(utterances_df['age_months'].iloc[i])
                     break
 
-    # Return the reconstructed sentences as a pandas Series
-    return pd.Series(sentences), pd.Series(masked_sentences)
+    # create DataFrames from the lists
+    masked_df = pd.DataFrame({
+        'utt': masked_sentences,
+        'age_months': age_months_masked
+    })
+    regular_df = pd.DataFrame({
+        'utt': regular_sentences,
+        'age_months': age_months_regular
+    })
 
-def assign_determiner_types(tagged_sentences, lookahead = 4):
+    return regular_df, masked_df
+
+def assign_determiner_types(utterances_df, lookahead = 4):
     """
     Maps every noun to 1 determiner type. If a noun is seen with multiple types,
     randomize which one it gets assigned to.
     """
     valid_determiners = {'a': 'A', 'the': 'B'}
     noun_to_types = {}
-    sentence_records = []
 
-    for sentence in tagged_sentences:
-        noun_pairs = set()
-
+    for i, sentence in tqdm(enumerate(utterances_df['tagged']), total=len(utterances_df), desc="Assigning determiner types to nouns"):
         # check for every word if it is a valid determiner and save the word
-        for i in range(len(sentence)):
-            word, pos = sentence[i]
+        for idx in range(len(sentence)):
+            word, pos = sentence[idx]
             if pos == 'DET' and word.lower() in valid_determiners:
                 det_type = valid_determiners[word.lower()]
 
                 # check if there is a noun in the next 4 words
-                for j in range(i+1, min(i + 1 + lookahead, len(sentence))):
+                for j in range(idx + 1, min(idx + 1 + lookahead, len(sentence))):
                     next_word, next_pos = sentence[j]
                     if next_pos == 'NOUN':
                         # save the noun and which determiner it is paired with
                         noun = next_word.lower()
                         noun_to_types.setdefault(noun, set()).add(det_type)
-                        noun_pairs.add((noun, det_type))
                         # stop if we find a noun
                         break
 
-        # keep a record of sentence + which pairs were present in that sentence
-        sentence_records.append((sentence, noun_pairs))
+    # Now we need to ensure each noun gets assigned only 1 determiner
+    for noun, types in noun_to_types.items():
+        if len(types) > 1:
+            # Assign one random determiner if multiple types are found
+            noun_to_types[noun] = {random.choice(list(types))}
 
-    return noun_to_types, sentence_records
+    return noun_to_types
 
-def filter_det_noun_pairs(noun_to_types, sentence_records):
+def filter_det_noun_pairs(utterances_df, noun_to_types):
     """
     Keeps only sentences where nouns are used with consistent determiners.
     """
+    valid_determiners = {'a': 'A', 'the': 'B'}
     filtered_sentences = []
+    age_months_filtered = []
+    lookahead = 5
 
-    # assign a determiner type to the noun
-    final_determiner_type = {
-        noun: list(types)[0]
-        for noun, types in noun_to_types.items()
-        if len(types) == 1
-    }
+    for sentence_tuple, age_month in tqdm(zip(utterances_df['tagged'], utterances_df['age_months']),
+                                           total=len(utterances_df),
+                                           desc="Filtering consistent det-noun pairs"):
+        original_words = [word for word, pos in sentence_tuple]
+        sentence_is_consistent = True
 
-    # check for each sentence if it is consistent, otherwise remove it
-    for sentence, noun_pairs in sentence_records:
-        if all(
-            noun in final_determiner_type and used_type == final_determiner_type[noun]
-            for noun, used_type in noun_pairs
-        ):
-            # remove extra spaces around punctuation etc.
-            plain_sentence = " ".join(word.strip() for word, _ in sentence)
-            filtered_sentences.append(plain_sentence)
+        for idx, (word, pos) in enumerate(sentence_tuple):
+            # check if the word is a key in valid determiners
+            if pos == 'DET' and word.lower() in valid_determiners:
+                current_det_word_lower = word.lower()
+                # get the type of determiner it is paired with
+                current_det_type = valid_determiners[current_det_word_lower]
 
-    return pd.Series(filtered_sentences)
+                # check for a noun close to the determiner
+                noun_found_in_window = False
+                for j in range(idx + 1, min(idx + 1 + lookahead, len(sentence_tuple))):
+                    next_word, next_pos = sentence_tuple[j]
+                    if next_pos == 'NOUN':
+                        noun = next_word.lower()
+                        noun_found_in_window = True
+                        if noun in noun_to_types:
+                            assigned_noun_det_type = list(noun_to_types[noun])[0]
+                            # compare types used
+                            if current_det_type != assigned_noun_det_type:
+                                sentence_is_consistent = False
+                                break
+                        break
+
+                if not sentence_is_consistent:
+                    break
+
+        if sentence_is_consistent:
+            filtered_sentences.append(" ".join(original_words))
+            age_months_filtered.append(age_month)
+
+    return pd.DataFrame({
+        'utt': filtered_sentences,
+        'age_months': age_months_filtered
+    })
+
+def filter_by_age_range(utterances_df, max_age):
+    """
+    Filters the utterances such that the 'age_months' is less than or equal to max_age.
+    """
+    return utterances_df[utterances_df['age_months'] <= max_age]
+
+def save_age_based_datasets(utterances_df, age_ranges):
+    """
+    Saves filtered datasets based on different age ranges to separate text files,
+    including only the sentence column (no age info).
+    """
+    for max_age in tqdm(age_ranges, desc="Saving train sets by age range"):
+        filtered_data = filter_by_age_range(utterances_df, max_age)
+        filtered_data['utt'].to_csv(
+            f"train_data_up_to_{max_age}_months.txt",
+            index=False,
+            header=False
+        )
 
 if __name__ == "__main__":
     # set working directory and load data
     set_wd()
-    parent_utterances, child_utterances = import_data("temp_data.csv")
+    parent_utterances, child_utterances = import_data("ldp_data.csv")
 
     # load pos tagger from spacy
     nlp = spacy.load('en_core_web_sm')
@@ -214,8 +262,8 @@ if __name__ == "__main__":
     first_names = list(pd.read_csv("first_names.csv")['Name'])
 
     # create lemmatized datasets, replace MASK with random names
-    parent_utterances = replace_mask_data(parent_utterances)
-    child_utterances = replace_mask_data(child_utterances)
+    parent_utterances = first_preprocess(parent_utterances)
+    child_utterances = first_preprocess(child_utterances)
 
     # save current parent data as unedited data, also serves as tokenizer train data
     parent_utterances.to_csv("train_data_all_unedited.txt", index = False, header = False)
@@ -228,6 +276,11 @@ if __name__ == "__main__":
 
     # create parent utt dataset where each noun only appears with 1 determiner
     pos_tagged_parent = pos_tagging(parent_utterances)
-    pair_dict, sentence_records = assign_determiner_types(pos_tagged_parent)
-    filtered_utterances = filter_det_noun_pairs(pair_dict, sentence_records)
-    filtered_utterances.to_csv('testdit.txt', index = False, header = False)
+    pair_dict = assign_determiner_types(pos_tagged_parent)
+    filtered_utterances = filter_det_noun_pairs(pos_tagged_parent, pair_dict)
+
+    # set age ranges for the children
+    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54]
+
+    # create training data sets per age cap
+    save_age_based_datasets(filtered_utterances, age_ranges)

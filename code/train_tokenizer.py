@@ -1,3 +1,8 @@
+"""
+Name: train_tokenizer.py
+Author: Mark van den Hoorn
+Desc: Trains a BertWordPieceTokenizer on all parent utterances from LDP corpus.
+"""
 from transformers import BertTokenizer, BertForMaskedLM, BertTokenizerFast, BertConfig
 from tokenizers.implementations import ByteLevelBPETokenizer, BertWordPieceTokenizer
 from tokenizers.pre_tokenizers import Whitespace, BertPreTokenizer
@@ -40,5 +45,6 @@ tokenizer.save_model(save_dir)
 # load the tokenizer so it is compatible with HF
 load_dir = os.path.abspath(os.path.join(os.getcwd(), "..", "custom_tokenizer"))
 hf_tokenizer = BertTokenizerFast.from_pretrained(load_dir, local_files_only=True, max_len=128)
-
-print(hf_tokenizer.tokenize("NAME is here and NAME is there and [UNK] mary"))
+# should lemmatize this test sentence first
+test = "Some random sentence such that there are many words that should occur in a normal life situation let us see if that is true"
+print(hf_tokenizer.tokenize(test))

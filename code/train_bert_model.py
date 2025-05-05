@@ -1,3 +1,9 @@
+"""
+Name: train_bert_model.py
+Author: Mark van den Hoorn
+Desc: Trains a bert model on child-directed utterances. The age of the children
+increases incrementally, models get made with every increment.
+"""
 import torch
 import os
 from transformers import Trainer, TrainingArguments
@@ -23,7 +29,7 @@ def prepare_data(filepath, tokenizer):
         split="train"
     )
 
-    # Tokenize the dataset
+    # tokenize the dataset
     def tokenize_function(example):
         return tokenizer(example["text"], truncation=True, padding="max_length", max_length=64)
 
@@ -80,7 +86,7 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
 
     # loop through each training phase/session
     for session in range(1, max_phase + 1):
-        print(f"\n🔁 Training for session/phase {session}:")
+        print(f"\n Training for session {session}:")
 
         datafile = os.path.join(path_to_data, input_fnames.format(session))
         output_name = output_fnames.format(session)
@@ -118,11 +124,13 @@ output_path = os.path.join(current_wd, '..', 'models')
 tokenizer_path =os.path.join(current_wd, '..', 'custom_tokenizer')
 
 # set name formats for input and output
-input_fnames = "train_data_session_{}.txt"
+input_fnames = "train_data_up_to_{}_months.txt"
 output_fnames = "model_output_session_{}"
 
 # check for GPU and set device
 print("Cuda available:", torch.cuda.is_available())
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# train incremental models
 train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
     tokenizer_path, 2, input_fnames, output_fnames)
