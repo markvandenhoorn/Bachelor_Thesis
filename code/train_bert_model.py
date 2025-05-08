@@ -134,7 +134,7 @@ if __name__ == "__main__":
     )
 
     # set age ranges for file naming
-    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54]
+    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58]
 
     # set paths for input, output and tokenizer
     current_wd = os.path.dirname(os.path.abspath(__file__))

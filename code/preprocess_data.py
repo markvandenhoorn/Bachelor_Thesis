@@ -15,6 +15,8 @@ import spacy
 import pandas as pd
 from tqdm import tqdm
 
+### TODO: Might be that all sentences containing a noun that is not in training
+### are removed, even if that noun is not part of a det+noun combo
 ### TODO: filter test sentences based on nouns that also appear in training
 ### TODO: Run code on all data (check import_data)
 
@@ -231,6 +233,33 @@ def filter_det_noun_pairs(utterances_df, noun_to_types):
         'age_months': age_months_filtered
     })
 
+def get_nouns(utterances):
+    # get nouns from the utterances
+    train_nouns = set()
+    for sentence in tqdm(utterances['utt'], desc="Extracting nouns from utterances"):
+        doc = nlp(sentence)
+        for token in doc:
+            if token.pos_ == 'NOUN':
+                train_nouns.add(token.text.lower())
+
+    return train_nouns
+
+def contains_train_noun(sentence, train_nouns):
+    # check if a noun is in training nouns
+    doc = nlp(sentence)
+    for token in doc:
+        if token.pos_ == 'NOUN' and token.text.lower() in train_nouns:
+            return True
+    return False
+
+def filter_utterances_by_nouns(utterances, train_nouns):
+    # filters out sentences where noun from det+noun is not in training data
+    filtered = []
+    for sentence in tqdm(utterances['utt'], desc="Filtering out nouns that are not in training"):
+        if contains_train_noun(sentence, train_nouns):
+            filtered.append(sentence)
+    return pd.DataFrame({'utt': filtered})
+
 def filter_by_age_range(utterances_df, max_age):
     """
     Filters the utterances such that the 'age_months' is less than or equal to max_age.
@@ -272,14 +301,32 @@ if __name__ == "__main__":
     child_utterances_processed = first_preprocess(child_utterances_raw)
 
     # save current parent data as tokenizer train data
-    tokenizer_train_file = "tokenizer_train_data.txt"
-    parent_utterances_processed.to_csv(tokenizer_train_file, index = False, header = False)
+    parent_utterances_processed.to_csv("tokenizer_train_data.txt", index = False, header = False)
 
-    # pos tag child data, then mask determiners and save test sets
+    # pos tag child data, then mask determiners
     pos_tagged_child = pos_tagging(child_utterances_processed)
     child_test_regular, child_test_masked = filter_determiner_sentences(pos_tagged_child)
-    child_test_regular.to_csv("test_data_regular.txt", index = False, header = False)
-    child_test_masked.to_csv("test_data_masked.txt", index = False, header = False)
+
+    # create parent utt dataset where each noun only appears with 1 determiner
+    pos_tagged_parent = pos_tagging(parent_utterances_processed)
+    pair_dict = assign_determiner_types(pos_tagged_parent)
+    filtered_utterances = filter_det_noun_pairs(pos_tagged_parent, pair_dict)
+
+    # get nouns from the utterances
+    filtered_nouns = get_nouns(filtered_utterances)
+    regular_nouns = get_nouns(pos_tagged_parent)
+
+    # make sure only det+noun are in test set where noun is also in training set
+    child_test_regular_ = filter_utterances_by_nouns(child_test_regular, regular_nouns)
+    child_test_masked_ = filter_utterances_by_nouns(child_test_masked, regular_nouns)
+    child_test_regular_filtered = filter_utterances_by_nouns(child_test_regular, filtered_nouns)
+    child_test_masked_filtered = filter_utterances_by_nouns(child_test_masked, filtered_nouns)
+
+    # save test sets
+    child_test_regular_.to_csv("test_data_regular.txt", index = False, header = False)
+    child_test_masked_.to_csv("test_data_masked.txt", index = False, header = False)
+    child_test_regular_filtered.to_csv("test_data_regular_filtered.txt", index = False, header = False)
+    child_test_masked_filtered.to_csv("test_data_masked_filtered.txt", index = False, header = False)
 
     # create parent utt dataset where each noun only appears with 1 determiner
     pos_tagged_parent = pos_tagging(parent_utterances_processed)
@@ -287,7 +334,7 @@ if __name__ == "__main__":
     filtered_utterances = filter_det_noun_pairs(pos_tagged_parent, pair_dict)
 
     # set age ranges for the children
-    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54]
+    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58]
 
     # create training data sets per age cap
     filtered_prefix = "filtered_train_data"
