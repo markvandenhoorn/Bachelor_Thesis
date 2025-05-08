@@ -40,11 +40,3 @@ tokenizer = create_tokenizer(["tokenizer_train_data.txt"])
 save_dir = os.path.join(os.getcwd(), "..", "custom_tokenizer")
 os.makedirs(save_dir, exist_ok=True)
 tokenizer.save_model(save_dir)
-
-### TODO TESTING AREA
-# load the tokenizer so it is compatible with HF
-load_dir = os.path.abspath(os.path.join(os.getcwd(), "..", "custom_tokenizer"))
-hf_tokenizer = BertTokenizerFast.from_pretrained(load_dir, local_files_only=True, max_len=128)
-# should lemmatize this test sentence first
-test = "Some random sentence such that there are many words that should occur in a normal life situation let us see if that is true"
-print(hf_tokenizer.tokenize(test))

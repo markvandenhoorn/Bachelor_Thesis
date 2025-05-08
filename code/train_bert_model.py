@@ -73,8 +73,8 @@ def train_single_model(model, tokenizer, datafile, name, modelconfig,
 def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
     tokenizer_path, age_ranges, data_type):
     """
-    Trains a BERT model incrementally over multiple sessions/phases, by
-    age ranges of LDP corpus data.
+    Trains a BERT model incrementally, by loading previous model and training on next
+    age range of LDP corpus data.
     """
     # load  our pretrained tokenizer
     tokenizer = BertTokenizerFast.from_pretrained(
@@ -83,29 +83,38 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
         max_len=128
     )
 
-    # update model config with vocab size and create the model
-    modelconfig.vocab_size = tokenizer.vocab_size
-    model = create_model(modelconfig)
-
     # set input and output names based on argparsed choice
     input_fnames = f"{data_type}_train_data_up_to_{{}}_months.txt"
     output_fnames = f"{data_type}_model_up_to_{{}}_months"
 
+    previous_model_path = None
+
     for i, age_limit in enumerate(age_ranges):
         session = i + 1
-        print(f"\n--- Training for Session {session} (Age <= {age_limit} months) ---")
+        print(f"Training up to {age_limit} months")
 
-        # create file name
         datafile = os.path.join(path_to_data, input_fnames.format(age_limit))
-        # output model with correct name
         output_name = output_fnames.format(age_limit)
+        output_model_path = os.path.join(output_path, output_name)
+
+        if previous_model_path is None:
+            # first training is from scratch
+            modelconfig.vocab_size = tokenizer.vocab_size
+            model = create_model(modelconfig)
+        else:
+            # load previous model
+            model = BertForMaskedLM.from_pretrained(previous_model_path)
+            model = model.to(device)
 
         # train model
         train_single_model(model, tokenizer, datafile, output_name, modelconfig,
-                           trainingconfig, output_path, tokenizer_path)
+            trainingconfig, output_path, tokenizer_path)
+
+        # update path for next iteration
+        previous_model_path = output_model_path
 
 if __name__ == "__main__":
-    # argparser to specify whether you want to use filtered or unfiltered data
+    # argparser to specify whether you want to use filtered or unfiltered models
     parser = argparse.ArgumentParser(description="Use Filtered or Unfiltered data for model training.")
     parser.add_argument(
         "data_type",

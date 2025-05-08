@@ -35,7 +35,7 @@ def is_only_mask(text):
 def import_data(filename):
     # read data, remove NaN and divide into parent and child data
     data = pd.read_csv(filename, index_col = 0)
-    data = data[0:10000]
+    data = data.sample(n=1000, random_state=42)
     parent_data = data.dropna(subset=["p_utts", "age_months"])
     child_data = data.dropna(subset=["c_utts", "age_months"])
 
@@ -118,8 +118,8 @@ def filter_determiner_sentences(utterances_df):
                     # mask the determiner and add sentence to masked list
                     masked_words = words.copy()
                     masked_words[i] = '[MASK]'
-                    masked_sentences.append(" ".join(masked_words))
-                    regular_sentences.append(" ".join(words))
+                    masked_sentences.append(" ".join(w.strip() for w in masked_words))
+                    regular_sentences.append(" ".join(w.strip() for w in words))
                     age_months_masked.append(utterances_df['age_months'].iloc[i])
                     age_months_regular.append(utterances_df['age_months'].iloc[i])
                     break
@@ -260,22 +260,26 @@ def filter_utterances_by_nouns(utterances, train_nouns):
             filtered.append(sentence)
     return pd.DataFrame({'utt': filtered})
 
-def filter_by_age_range(utterances_df, max_age):
+def filter_by_age_range(utterances_df, min_age, max_age):
     """
-    Filters the utterances such that the 'age_months' is less than or equal to max_age.
+    Filters the utterances such that the 'age_months' is inbetween min age and
+    max age.
     """
-    return utterances_df[utterances_df['age_months'] <= max_age]
+    return utterances_df[(utterances_df['age_months'] > min_age) & (utterances_df['age_months'] <= max_age)]
 
-def save_age_based_datasets(utterances_df, age_ranges, filename_prefix):
+def save_age_based_datasets(utterances_df, age_bins, filename_prefix):
     """
     Saves filtered datasets based on different age ranges to separate text files,
     including only the sentence column (no age info).
     """
     output_dir = os.getcwd()
 
-    # save data per age range
-    for max_age in tqdm(age_ranges, desc=f"Saving train sets by age range"):
-        filtered_data = filter_by_age_range(utterances_df, max_age)
+    # save utterances per age range
+    for i in tqdm(range(len(age_bins) - 1), desc=f"Saving datasets by age range"):
+        min_age = age_bins[i]
+        max_age = age_bins[i + 1]
+        filtered_data = filter_by_age_range(utterances_df, min_age, max_age)
+
         output_filename = os.path.join(output_dir, f"{filename_prefix}_up_to_{max_age}_months.txt")
 
         # save only the 'utt' column
@@ -328,13 +332,8 @@ if __name__ == "__main__":
     child_test_regular_filtered.to_csv("test_data_regular_filtered.txt", index = False, header = False)
     child_test_masked_filtered.to_csv("test_data_masked_filtered.txt", index = False, header = False)
 
-    # create parent utt dataset where each noun only appears with 1 determiner
-    pos_tagged_parent = pos_tagging(parent_utterances_processed)
-    pair_dict = assign_determiner_types(pos_tagged_parent)
-    filtered_utterances = filter_det_noun_pairs(pos_tagged_parent, pair_dict)
-
     # set age ranges for the children
-    age_ranges = [14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58]
+    age_ranges = [0, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58, 62]
 
     # create training data sets per age cap
     filtered_prefix = "filtered_train_data"
