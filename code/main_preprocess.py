@@ -5,16 +5,16 @@ Desc: Does all data preprocessing, creating datasets for model training etc. Use
 the other utility files to achieve this.
 """
 import os
-from utils import set_wd, import_data
-from preprocessing import first_preprocess, filter_determiner_sentences, filter_utterances_by_nouns
-from pos_tagging import pos_tagging, assign_determiner_types, filter_det_noun_pairs, get_nouns
-from age_filtering import save_age_based_datasets
 import pandas as pd
+import pickle
+from utils import set_wd, import_data
+from preprocessing import first_preprocess, filter_determiner_sentences, filter_utterances_by_nouns, extract_det_noun_pairs
+from pos_tagging import pos_tagging, assign_determiner_types, filter_det_noun_pairs, get_nouns, remove_empty_sentences
+from age_filtering import save_age_based_datasets
+from collections import Counter, defaultdict
 
-### TODO: Might be that all sentences containing a noun that is not in training
-### are removed, even if that noun is not part of a det+noun combo
-### TODO: filter test sentences based on nouns that also appear in training
 ### TODO: Run code on all data (check import_data in utils.py)
+### TODO: Remove all unnecessary comments
 
 if __name__ == "__main__":
     # set the working directory
@@ -37,27 +37,40 @@ if __name__ == "__main__":
     pos_tagged_child = pos_tagging(child_utterances_processed)
     child_test_regular, child_test_masked = filter_determiner_sentences(pos_tagged_child)
 
+    # save a dataset of det+noun combinations which occur in child data (for testing)
+    testing_detnouns = pd.Series(extract_det_noun_pairs(pos_tagged_child))
+    testing_detnouns = testing_detnouns.drop_duplicates()
+    testing_detnouns.to_csv("testing_det_nouns.txt", index = False, header = False)
+
+    # POS tag parent utts and filter out inconsistent determiner use
+    # some nouns are allowed to be seen with both determiners, percentages reflect that
     pos_tagged_parent = pos_tagging(parent_utterances_processed)
-    pair_dict = assign_determiner_types(pos_tagged_parent)
-    filtered_utterances = filter_det_noun_pairs(pos_tagged_parent, pair_dict)
+    pos_tagged_parent.to_csv("pos_tagged_data.txt", index = False, header = False)
+    pos_tagged_child.to_csv("pos_tagged_child.txt", index = False, header = False)
+    pair_dict_regular = assign_determiner_types(pos_tagged_parent, both_chance = 1)
+    pair_dict_0 = assign_determiner_types(pos_tagged_parent)
+    pair_dict_25 = assign_determiner_types(pos_tagged_parent, both_chance = 0.25)
+    pair_dict_50 = assign_determiner_types(pos_tagged_parent, both_chance = 0.50)
+    pair_dict_75 = assign_determiner_types(pos_tagged_parent, both_chance = 0.75)
+    filtered_utterances_0 = filter_det_noun_pairs(pos_tagged_parent, pair_dict_0)
+    filtered_utterances_25 = filter_det_noun_pairs(pos_tagged_parent, pair_dict_25)
+    filtered_utterances_50 = filter_det_noun_pairs(pos_tagged_parent, pair_dict_50)
+    filtered_utterances_75 = filter_det_noun_pairs(pos_tagged_parent, pair_dict_75)
 
-    # get nouns from the utterances
-    filtered_nouns = get_nouns(filtered_utterances)
-    regular_nouns = get_nouns(pos_tagged_parent)
-
-    # make sure only det+noun are in test set where noun is also in training set
-    child_test_regular_ = filter_utterances_by_nouns(child_test_regular, regular_nouns)
-    child_test_masked_ = filter_utterances_by_nouns(child_test_masked, regular_nouns)
-    child_test_regular_filtered = filter_utterances_by_nouns(child_test_regular, filtered_nouns)
-    child_test_masked_filtered = filter_utterances_by_nouns(child_test_masked, filtered_nouns)
-
-    # save test sets
-    child_test_regular_.to_csv("test_data_regular.txt", index = False, header = False)
-    child_test_masked_.to_csv("test_data_masked.txt", index = False, header = False)
-    child_test_regular_filtered.to_csv("test_data_regular_filtered.txt", index = False, header = False)
-    child_test_masked_filtered.to_csv("test_data_masked_filtered.txt", index = False, header = False)
+    # save noun to determiner mapping so we can use it elsewhere
+    with open("determiner_dicts.pkl", "wb") as f:
+        pickle.dump({
+            "regular": pair_dict_regular,
+            "0": pair_dict_0,
+            "25": pair_dict_25,
+            "50": pair_dict_50,
+            "75": pair_dict_75
+        }, f)
 
     # save datasets based on age ranges
     age_ranges = [0, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50, 54, 58]
-    save_age_based_datasets(filtered_utterances, age_ranges, "filtered_train_data")
+    save_age_based_datasets(filtered_utterances_0, age_ranges, "filtered_train_data_0")
+    save_age_based_datasets(filtered_utterances_25, age_ranges, "filtered_train_data_25")
+    save_age_based_datasets(filtered_utterances_50, age_ranges, "filtered_train_data_50")
+    save_age_based_datasets(filtered_utterances_75, age_ranges, "filtered_train_data_75")
     save_age_based_datasets(parent_utterances_processed, age_ranges, "unfiltered_train_data")

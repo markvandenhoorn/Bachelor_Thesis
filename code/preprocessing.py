@@ -24,15 +24,33 @@ def first_preprocess(utterances, first_names):
     docs = nlp.pipe(texts, batch_size=1000, n_process=1)
     docs = tqdm(docs, total=len(texts), desc="Lemmatizing, removing punctuation and replacing MASK")
 
-    # lemmatize, remove punctuation and clean spaces
+    # lemmatize, remove punctuation and clean spaces, also replace + with space
     lemmatized = []
     for doc in docs:
         lemmatized_tokens = [token.lemma_ for token in doc if not token.is_punct]
-        cleaned_text = " ".join(lemmatized_tokens)
+
+        # repeat words that have [x4] etc. and remove the [x4]
+        expanded_tokens = []
+        i = 0
+        while i < len(lemmatized_tokens):
+            token = lemmatized_tokens[i]
+            if re.fullmatch(r'\[x\d+\]', token) and len(expanded_tokens) > 0:
+                repeat_count = int(token[2:-1])
+                expanded_tokens.extend([expanded_tokens[-1]] * (repeat_count - 1))
+            else:
+                expanded_tokens.append(token)
+            i += 1
+
+        # Remove '+' and join
+        cleaned_text = " ".join(token.replace('+', '') for token in expanded_tokens)
         lemmatized.append(cleaned_text)
 
-    # replace mask with random name
-    replaced = [re.sub(r"MASK", lambda _: random.choice(first_names), text) for text in lemmatized]
+    # replace mask and 'name@x' with random name
+    replaced = [
+        re.sub(r"\b\w*@\w*\b", lambda _: random.choice(first_names),
+        re.sub(r"\bMASK\b", lambda _: random.choice(first_names), text))
+        for text in lemmatized
+    ]
 
     return pd.DataFrame({'utt': replaced, 'age_months': utterances['age_months'].values})
 
@@ -112,8 +130,25 @@ def contains_train_noun(sentence, train_nouns):
 
 def filter_utterances_by_nouns(utterances, train_nouns):
     # filters out sentences where noun from det+noun is not in training data
-    filtered = []
-    for sentence in tqdm(utterances['utt'], desc="Filtering out nouns that are not in training"):
-        if contains_train_noun(sentence, train_nouns):
-            filtered.append(sentence)
-    return pd.DataFrame({'utt': filtered})
+    mask = utterances_df['utt'].apply(lambda s: contains_train_noun(s, train_nouns))
+    return utterances_df[mask].reset_index(drop=True)
+
+def extract_det_noun_pairs(pos_tagged_utterances):
+    """
+    Extracts all determiner + noun pairs from the child sentences.
+    """
+    det_noun_pairs = set()
+
+    for row in pos_tagged_utterances['tagged']:
+        # iterate over word and tag pairs
+        for i in range(len(row) - 1):
+            word1, tag1 = row[i]
+            word2, tag2 = row[i + 1]
+
+            # check if it is a det+noun pair
+            if tag1 == 'DET' and tag2 == 'NOUN' and word1 in ['a', 'the']:
+                # add the pair to the set
+                pair = f"{word1.lower()} {word2.lower()}"
+                det_noun_pairs.add(pair)
+
+    return list(det_noun_pairs)

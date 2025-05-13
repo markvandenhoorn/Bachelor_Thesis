@@ -9,12 +9,22 @@ python train_bert_model.py unfiltered
 import torch
 import os
 import argparse
-from transformers import Trainer, TrainingArguments
-from transformers import LineByLineTextDataset
+import matplotlib.pyplot as plt
+from transformers import Trainer, TrainingArguments, TrainerCallback
 from transformers import DataCollatorForLanguageModeling
-from transformers import PreTrainedTokenizerFast
 from transformers import BertTokenizer, BertForMaskedLM, BertTokenizerFast, BertConfig
 from datasets import load_dataset
+
+class LossHistoryCallback(TrainerCallback):
+    def __init__(self):
+        super().__init__()
+        self.loss_history = []
+        self.step_history = []
+
+    def on_log(self, args: TrainingArguments, state, control, logs=None, **kwargs):
+        if logs is not None and 'loss' in logs:
+            self.loss_history.append(logs['loss'])
+            self.step_history.append(state.global_step)
 
 def create_model(config):
     model = BertForMaskedLM(config=config)
@@ -57,18 +67,38 @@ def train_single_model(model, tokenizer, datafile, name, modelconfig,
     # tokenize data and create collator
     dataset, data_collator = prepare_data(datafile, tokenizer)
 
+    # track loss history
+    loss_history_callback = LossHistoryCallback()
+
     # instantiate a trainer
     trainer = Trainer(model=model,
                       args=trainingconfig,
                       data_collator=data_collator,
-                      train_dataset=dataset
+                      train_dataset=dataset,
+                      callbacks=[loss_history_callback]
                      )
+
+    # create a list to store the loss values
+    loss_values = []
 
     # start training
     train_output = trainer.train()
 
     # save model in output folder
     trainer.save_model(os.path.join(outputpath, name))
+
+    # plot loss
+    if loss_history_callback.loss_history:
+        plt.figure()
+        plt.plot(loss_history_callback.step_history, loss_history_callback.loss_history)
+        plt.title(f"Training Loss for {name}")
+        plt.xlabel("Global Steps")
+        plt.ylabel("Loss")
+        loss_plot_path = os.path.join(outputpath, f"{name}_training_loss.png")
+        plt.savefig(loss_plot_path)
+        plt.close()
+    else:
+        print("No loss values recorded to plot.")
 
 def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
     tokenizer_path, age_ranges, data_type):
@@ -80,12 +110,16 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
     tokenizer = BertTokenizerFast.from_pretrained(
         tokenizer_path,
         local_files_only=True,
-        max_len=128
+        max_len=64
     )
 
     # set input and output names based on argparsed choice
-    input_fnames = f"{data_type}_train_data_up_to_{{}}_months.txt"
-    output_fnames = f"{data_type}_model_up_to_{{}}_months"
+    if data_type == "unfiltered":
+        input_fnames = f"unfiltered_train_data_up_to_{{}}_months.txt"
+        output_fnames = f"{data_type}_model_up_to_{{}}_months"
+    else:
+        input_fnames = f"filtered_train_data_{data_type}_up_to_{{}}_months.txt"
+        output_fnames = f"filtered_{data_type}_model_up_to_{{}}_months"
 
     previous_model_path = None
 
@@ -119,8 +153,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "data_type",
         type=str,
-        choices=["filtered", "unfiltered"],
-        help="Specify whether to use 'filtered' or 'unfiltered' training data."
+        choices=["unfiltered", "0", "25", "50", "75"],
+        help="Specify whether to use 'filtered' or 'unfiltered' training data. Choose filtered, 0, 25, 50 or 75"
     )
     args = parser.parse_args()
 
@@ -135,10 +169,13 @@ if __name__ == "__main__":
     # trainer configuration
     trainingconfig = TrainingArguments(
         overwrite_output_dir=True,
+        num_train_epochs=3,
         per_device_train_batch_size = 64,
         save_steps=10_000,
         save_total_limit=2,
         prediction_loss_only=True,
+        logging_strategy="epoch",
+        logging_steps=10, # for if i want to change strategy to steps
         resume_from_checkpoint=None
     )
 

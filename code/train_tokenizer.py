@@ -6,7 +6,7 @@ Desc: Trains a BertWordPieceTokenizer on all parent utterances from LDP corpus.
 from transformers import BertTokenizer, BertForMaskedLM, BertTokenizerFast, BertConfig
 from tokenizers.implementations import ByteLevelBPETokenizer, BertWordPieceTokenizer
 from tokenizers.pre_tokenizers import Whitespace, BertPreTokenizer
-from preprocess_data import set_wd
+from utils import set_wd
 import os
 
 def create_tokenizer(files):
