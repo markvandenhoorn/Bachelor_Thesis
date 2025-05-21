@@ -20,7 +20,16 @@ This tokenizer will be saved in the custom_tokenizer folder.
 ### Training incremental models
 Now you can start training incremental models. You need to specify what type of models you want to train when running the code. The 5 options are:
 ```
-python train_bert_model.py filtered
+python train_bert_model.py 0
+```
+```
+python train_bert_model.py 25
+```
+```
+python train_bert_model.py 50
+```
+```
+python train_bert_model.py 75
 ```
 ```
 python train_bert_model.py unfiltered
