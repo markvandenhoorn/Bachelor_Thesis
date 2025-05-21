@@ -76,15 +76,8 @@ def print_determiner_usage_summary(noun_to_determiners_seen):
     if list_both:
         print(f"  Examples: {', '.join(list_both[:10])}{'...' if len(list_both) > 10 else ''}")
 
-# Read your data into a DataFrame
-training_df = pd.read_csv("../data/unfiltered_train_data_up_to_58_months.txt", header = None, names = ["utt"])
-training_df = pd.read_csv("../data/filtered_train_data_0_up_to_58_months.txt", header=None, names=["utt"])
-
 # Run the analysis
-analysis_results = analyze_determiner_noun_usage_spacy(training_df)
-print_determiner_usage_summary(analysis_results)
-
 for number in ["14", "18", "22", "26", "30", "34", "38", "42", "46", "50", "54", "58"]:
-    training_df = pd.read_csv(f"../data/filtered_train_data_0_up_to_{number}_months.txt", header = None, names = ["utt"])
+    training_df = pd.read_csv(f"../data/filtered_train_data_25_up_to_{number}_months.txt", header = None, names = ["utt"])
     analysis_results = analyze_determiner_noun_usage_spacy(training_df)
     print_determiner_usage_summary(analysis_results)

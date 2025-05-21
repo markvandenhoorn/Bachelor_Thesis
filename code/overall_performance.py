@@ -17,39 +17,42 @@ import pandas as pd
 # load tokenizer and model
 current_wd = os.path.dirname(os.path.abspath(__file__))
 tokenizer_path = os.path.join(current_wd, '..', 'custom_tokenizer')
-model_path = os.path.join(current_wd, '..', 'models', 'unfiltered_model_up_to_58_months')
+model_name = 'unfiltered_model_up_to_58_months'
+model_path = os.path.join(current_wd, '..', 'models', model_name)
 tokenizer = BertTokenizerFast.from_pretrained(tokenizer_path)
 model = BertForMaskedLM.from_pretrained(model_path).to("cuda" if torch.cuda.is_available() else "cpu")
 model.eval()
 
-file_path = os.path.join(current_wd, '..', 'data', 'test_54_months_100.txt')
+file_path = os.path.join(current_wd, '..', 'data', 'overall_performance.txt')
 
 # get the det+nouns from the file
-with open(file_path, "r") as f:
-    lines = [line.strip() for line in f if line.strip()]
+df = pd.read_csv(file_path)
+df['tagged'] = df['tagged'].apply(eval)
 
 # have sentences with determiner and also one with mask + noun
 gold_dets = []
 masked_sentences = []
 
-for line in lines:
-    words = line.split()
-    masked_sentence = []
-    temp_gold_dets = []
-    num_dets = 0
+for tagged in df['tagged']:
+    # Find all determiners
+    det_indices = [
+        i for i, (word, tag) in enumerate(tagged)
+        if word.lower() in ["a", "the"]
+    ]
 
-    for word in words:
-        if word in ["a", "the"]:
-            temp_gold_dets.append(word)
-            masked_sentence.append("[MASK]")
-            num_dets += 1
-        else:
-            masked_sentence.append(word)
+    # Only keep sentences with exactly one determiner
+    if len(det_indices) != 1:
+        continue
 
-    # keep only sentences with a single determiner
-    if num_dets == 1:
-        masked_sentences.append(" ".join(masked_sentence))
-        gold_dets.extend(temp_gold_dets)
+    idx = det_indices[0]
+    gold_dets.append(tagged[idx][0].lower())  # Save 'a' or 'the'
+
+    # Replace the determiner with [MASK]
+    masked_tokens = [
+        "[MASK]" if i == idx else word
+        for i, (word, _) in enumerate(tagged)
+    ]
+    masked_sentences.append(" ".join(masked_tokens))
 
 predicted_dets = []
 all_dets = ["a", "the"]
@@ -94,6 +97,9 @@ print(f"Occurrences of 'a': {gold_counts['a']}")
 print(f"Occurrences of 'the': {gold_counts['the']}")
 
 # display
+plot_filename = f"overall_performance_{model_name}.png"
 plt.title(f"LDP Corpus\nOverall accuracy: {acc:.2%}\nCoverage: {coverage:.2%}")
 plt.tight_layout()
+plot_path = os.path.normpath(os.path.join(current_wd, '..', 'models', plot_filename))
+plt.savefig(plot_path)
 plt.show()

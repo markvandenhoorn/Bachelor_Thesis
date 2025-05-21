@@ -63,9 +63,6 @@ def main():
     print(f"Nouns with both 'a' and 'the': {both_count}")
     print(f"Nouns with only 'a': {only_a_count}")
     print(f"Nouns with only 'the': {only_the_count}")
-    # print(f"Nouns with both:")
-    # for noun in nouns_with_both:
-    #     print(noun)
 
 if __name__ == "__main__":
     main()

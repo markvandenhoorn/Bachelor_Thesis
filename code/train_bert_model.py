@@ -169,7 +169,7 @@ if __name__ == "__main__":
     # trainer configuration
     trainingconfig = TrainingArguments(
         overwrite_output_dir=True,
-        num_train_epochs=3,
+        num_train_epochs=4,
         per_device_train_batch_size = 64,
         save_steps=10_000,
         save_total_limit=2,
