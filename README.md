@@ -26,3 +26,10 @@ python train_bert_model.py filtered
 python train_bert_model.py unfiltered
 ```
 The resulting models are stored in the models folder.
+
+## Using files (temporary)
+To use create_test.py you can give an optional argument. By default it creates a test set containing all relevant sentences. If you do 
+```
+python create_test.py --unique_nouns
+```
+This will create test sets where a noun is seen only once in every test set.
