@@ -8,7 +8,11 @@ Then, navigate to the 'code' folder in your terminal. From there, run:
 ```
 python main_preprocessing.py
 ```
-This will create all the necessary data, for each type of model (restrained, unrestrained and the 3 types in between) as well as the tokenizer dataset. These files are stored in the data folder.
+This will create all the necessary data, for each type of model (restrained, unrestrained and the 3 types in between) as well as the tokenizer dataset. These files are stored in the data folder. Optionally, you can add an argument to filter out sentences where two words want conflicting determiners. E.g. "the blue one", where blue is assigned 'the' and one is assigned 'a'. By default the second word gets changed into a new noun that has the same determiner type as the first. By running this:
+```
+python main_preprocessing.py --remove_conflicts
+```
+These conflicting sentences get filtered out of the training data.
 
 ### Training the tokenizer
 After creating the data, train a tokenizer using:
