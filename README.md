@@ -8,7 +8,11 @@ Then, navigate to the 'code' folder in your terminal. From there, run:
 ```
 python main_preprocessing.py
 ```
-This will create all the necessary data, for each type of model (restrained, unrestrained and the 3 types in between) as well as the tokenizer dataset. These files are stored in the data folder.
+This will create all the necessary data, for each type of model (restrained, unrestrained and the 3 types in between) as well as the tokenizer dataset. These files are stored in the data folder. Optionally, you can add an argument to filter out sentences where two words want conflicting determiners. E.g. "the blue one", where blue is assigned 'the' and one is assigned 'a'. By default the second word gets changed into a new noun that has the same determiner type as the first. By running this:
+```
+python main_preprocessing.py --remove_conflicts
+```
+These conflicting sentences get filtered out of the training data.
 
 ### Training the tokenizer
 After creating the data, train a tokenizer using:
@@ -37,7 +41,16 @@ python train_bert_model.py unfiltered
 The resulting models are stored in the models folder.
 
 ### Exploratory functions
-The files exploratory.py, checking.py and overall_performance.py are for exploratory data analysis. Exploratory.py checks how many unique nouns are seen with a determiner in the data, and divides this into groups of 'seen with a', 'seen with the' and 'seen with both'. Checking.py is for finding how many nouns in the training data appear with 'a', 'the' or both. Overall_performance tests the fully trained unrestricted model on sentences with DET + NOUN or DET + x + NOUN where x is any word that is not a NOUN. 
+The files exploratory.py, checking.py and overall_performance.py are for exploratory data analysis. Exploratory.py checks how many unique nouns are seen with a determiner in the data, and divides this into groups of 'seen with a', 'seen with the' and 'seen with both'. Checking.py is for finding how many nouns in the training data appear with 'a', 'the' or both. 
+
+Overall_performance tests the fully trained unrestricted model on sentences with DET + NOUN or DET + x + NOUN where x is any word that is not a NOUN. It outputs a confusion matrix and also a graph of productive determiner use. The first time you run this, run it without arguments to create a sub-testset. Then you run it by providing a prefix of the name of the model you want to test, like this:
+```
+python overall_performance --model_type filtered_0_model
+```
+or
+```
+python overall_performance --model_type unfiltered_model
+```
 
 ### Creating test sets
 To create test sets, you run create_test.py. By default it creates a test set containing all relevant sentences. If you want test sets where each noun is seen only once in each test set, you run it like this:
