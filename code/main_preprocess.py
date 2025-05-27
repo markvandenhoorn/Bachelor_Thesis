@@ -7,17 +7,18 @@ the other utility files to achieve this.
 import os
 import pandas as pd
 import pickle
+import argparse
 from utils import set_wd, import_data
 from preprocessing import first_preprocess, filter_determiner_sentences
 from pos_tagging import pos_tagging, assign_determiner_types, filter_det_noun_pairs, get_nouns, remove_empty_sentences, run_filter_iterations
 from age_filtering import save_age_based_datasets
 from collections import Counter, defaultdict
 
-### TODO: Run code on all data (check import_data in utils.py)
-### TODO: Remove all unnecessary comments
-
 if __name__ == "__main__":
-    # set the working directory
+    # set the working directory and set up argparsing
+    parser = argparse.ArgumentParser(description="Run full preprocessing pipeline.")
+    parser.add_argument('--remove_conflicts', action='store_true', help="Remove conflicting det-noun pairs instead of adapting them")
+    args = parser.parse_args()
     set_wd()
 
     # import data
@@ -49,10 +50,14 @@ if __name__ == "__main__":
     pair_dict_75 = assign_determiner_types(pos_tagged_parent, both_chance = 0.75)
 
     # filter based on assigned determiners
-    filtered_utterances_0 = run_filter_iterations(pos_tagged_parent, pair_dict_0, num_passes=2)
-    filtered_utterances_25 = run_filter_iterations(pos_tagged_parent, pair_dict_25, num_passes=2)
-    filtered_utterances_50 = run_filter_iterations(pos_tagged_parent, pair_dict_50, num_passes=2)
-    filtered_utterances_75 = run_filter_iterations(pos_tagged_parent, pair_dict_75, num_passes=2)
+    filtered_utterances_0 = run_filter_iterations(pos_tagged_parent, pair_dict_0,
+        num_passes=2, remove_conflicts=args.remove_conflicts)
+    filtered_utterances_25 = run_filter_iterations(pos_tagged_parent, pair_dict_25,
+        num_passes=2, remove_conflicts=args.remove_conflicts)
+    filtered_utterances_50 = run_filter_iterations(pos_tagged_parent, pair_dict_50,
+        num_passes=2, remove_conflicts=args.remove_conflicts)
+    filtered_utterances_75 = run_filter_iterations(pos_tagged_parent, pair_dict_75,
+        num_passes=2, remove_conflicts=args.remove_conflicts)
 
     # save noun to determiner mapping so we can use it elsewhere
     with open("determiner_dicts.pkl", "wb") as f:

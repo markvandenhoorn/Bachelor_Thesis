@@ -87,18 +87,7 @@ def train_single_model(model, tokenizer, datafile, name, modelconfig,
     # save model in output folder
     trainer.save_model(os.path.join(outputpath, name))
 
-    # plot loss
-    if loss_history_callback.loss_history:
-        plt.figure()
-        plt.plot(loss_history_callback.step_history, loss_history_callback.loss_history)
-        plt.title(f"Training Loss for {name}")
-        plt.xlabel("Global Steps")
-        plt.ylabel("Loss")
-        loss_plot_path = os.path.join(outputpath, f"{name}_training_loss.png")
-        plt.savefig(loss_plot_path)
-        plt.close()
-    else:
-        print("No loss values recorded to plot.")
+    return loss_history_callback
 
 def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_path,
     tokenizer_path, age_ranges, data_type):
@@ -122,6 +111,9 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
         output_fnames = f"filtered_{data_type}_model_up_to_{{}}_months"
 
     previous_model_path = None
+    all_losses = []
+    all_steps = []
+    global_step_offset = 0
 
     for i, age_limit in enumerate(age_ranges):
         session = i + 1
@@ -141,11 +133,30 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
             model = model.to(device)
 
         # train model
-        train_single_model(model, tokenizer, datafile, output_name, modelconfig,
+        loss_cb = train_single_model(model, tokenizer, datafile, output_name, modelconfig,
             trainingconfig, output_path, tokenizer_path)
+
+        # add loss and global steps
+        adjusted_steps = [s + global_step_offset for s in loss_cb.step_history]
+        all_steps.extend(adjusted_steps)
+        all_losses.extend(loss_cb.loss_history)
+
+        # Update offset for next age group
+        if adjusted_steps:
+            global_step_offset = adjusted_steps[-1] + 1
 
         # update path for next iteration
         previous_model_path = output_model_path
+
+    if all_losses:
+        plt.figure()
+        plt.plot(all_steps, all_losses)
+        plt.title(f"Total Training (Model type {data_type})")
+        plt.xlabel("Global Steps")
+        plt.ylabel("Loss")
+        full_loss_path = os.path.join(output_path, f"{data_type}_full_training_loss.png")
+        plt.savefig(full_loss_path)
+        plt.close()
 
 if __name__ == "__main__":
     # argparser to specify whether you want to use filtered or unfiltered models

@@ -66,6 +66,8 @@ for test_file in test_files:
     a_to_the = 0
     the_to_a = 0
     pred_a_or_the = 0
+    a_predictions = 0
+    the_predictions = 0
     correct_overall = 0
     total_sentences = 0
 
@@ -156,6 +158,12 @@ for test_file in test_files:
         if predicted_token == actual_det:
             correct_overall += 1
 
+        # count a and the predictions
+        if predicted_token == "a":
+            a_predictions += 1
+        elif predicted_token == "the":
+            the_predictions += 1
+
         # check if prediction is other than the assigned det type
         pred_a_or_the += 1
         if gold_det == "a" and predicted_token == "the":
@@ -172,6 +180,9 @@ for test_file in test_files:
     results.append({
         "model_type": model_type,
         "age": age,
+        "a_predictions": a_predictions,
+        "the_predictions": the_predictions,
+        "total_predictions": total_sentences,
         "a_to_the": a_to_the,
         "the_to_a": the_to_a,
         "pred_a_or_the": pred_a_or_the,
@@ -179,8 +190,7 @@ for test_file in test_files:
         "the_to_a_ratio": the_to_a_ratio,
         "total_misclassified": (a_to_the + the_to_a) / pred_a_or_the if pred_a_or_the > 0 else 0.0,
         "overall_accuracy": overall_accuracy,
-        "determiner_accuracy": determiner_accuracy,
-        "total_predictions": total_sentences
+        "determiner_accuracy": determiner_accuracy
     })
 
 # save to CSV
@@ -201,15 +211,32 @@ for model_type in df["model_type"].unique():
     plt.figure()
     plt.plot(subset["age"], subset["a_to_the_ratio"], label="'a' → 'the'", marker='o')
     plt.plot(subset["age"], subset["the_to_a_ratio"], label="'the' → 'a'", marker='o')
-    plt.plot(subset["age"], subset["total_misclassified"], label="Total misclassifications", marker='x', linestyle='--', color='gray')
-    plt.title(f"Model Type {model_type}: Misclassification Ratios")
+    plt.plot(subset["age"], subset["total_misclassified"], label="Total generalized predictions", marker='x', linestyle='--', color='gray')
+    plt.title(f"Model Type {model_type}: Generalized predictions")
     plt.xlabel("Age (months)")
     plt.ylabel("Ratio")
     plt.ylim(0, 1)
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, f"model_type_{model_type}.png"))
+    plt.savefig(os.path.join(output_dir, f"Generalization_ratios_{model_type}.png"))
+    plt.close()
+
+# plot misclassification numbers
+for model_type in df["model_type"].unique():
+    subset = df[df["model_type"] == model_type]
+
+    plt.figure()
+    plt.plot(subset["age"], subset["a_to_the"], label="'a' → 'the'", marker='o')
+    plt.plot(subset["age"], subset["the_to_a"], label="'the' → 'a'", marker='o')
+    plt.plot(subset["age"], (subset["a_to_the"]+subset["the_to_a"]), label="Total generalized predictions", marker='x', linestyle='--', color='gray')
+    plt.title(f"Model Type {model_type}: Generalization in predictions")
+    plt.xlabel("Age (months)")
+    plt.ylabel("amount")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f"Generalization_numbers_{model_type}.png"))
     plt.close()
 
 # plot accuracies
@@ -226,5 +253,23 @@ for model_type in df["model_type"].unique():
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, f"accuracy_model_type_{model_type}.png"))
+    plt.savefig(os.path.join(output_dir, f"accuracy_{model_type}.png"))
+    plt.close()
+
+# plot prediction ratios ('a' and 'the') per model type
+for model_type in df["model_type"].unique():
+    subset = df[df["model_type"] == model_type]
+
+    plt.figure()
+    plt.plot(subset["age"], subset["a_predictions"] / subset["total_predictions"], label="Ratio of 'a' predictions", marker='o')
+    plt.plot(subset["age"], subset["the_predictions"] / subset["total_predictions"], label="Ratio of 'the' predictions", marker='s')
+    plt.plot(subset["age"], (subset["the_predictions"]+subset["a_predictions"]) / subset["total_predictions"], label="Ratio of any determiner predictions", marker='s')
+    plt.title(f"Model Type {model_type}: Prediction Ratios Over Time")
+    plt.xlabel("Age (months)")
+    plt.ylabel("Prediction Ratio")
+    plt.ylim(0, 1)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f"prediction_ratios_{model_type}.png"))
     plt.close()

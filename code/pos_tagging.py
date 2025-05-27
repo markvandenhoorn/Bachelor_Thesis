@@ -98,7 +98,7 @@ def assign_determiner_types(utterances_df, lookahead=4, both_chance = 0):
 
     return noun_to_types
 
-def filter_det_noun_pairs(utterances_df, noun_to_types):
+def filter_det_noun_pairs(utterances_df, noun_to_types, remove_conflicts = False):
     """
     Modifies sentences based on determiner-noun consistency rules.
     Additionally tracks how often two typed words had conflicting determiner types.
@@ -113,6 +113,7 @@ def filter_det_noun_pairs(utterances_df, noun_to_types):
 
     for sentence_tuple, age_month in tqdm(zip(utterances_df['tagged'], utterances_df['age_months']), total=len(utterances_df), desc="Filtering consistent det-noun pairs"):
         current_sentence_words = [word for word, pos in sentence_tuple]
+        skip_sentence = False
 
         for idx, (original_det_text_in_tuple, original_det_pos_in_tuple) in enumerate(sentence_tuple):
             if original_det_pos_in_tuple == 'DET' and original_det_text_in_tuple.lower() in valid_determiners:
@@ -168,6 +169,9 @@ def filter_det_noun_pairs(utterances_df, noun_to_types):
                             final_det_type_for_phrase = req_type1
                         else:
                             conflict_count += 1
+                            if remove_conflicts:
+                                skip_sentence = True
+                                break
                             final_det_type_for_phrase = req_type1
                             adapt_word2 = True
                             word2_target_det_type = req_type1
@@ -189,6 +193,9 @@ def filter_det_noun_pairs(utterances_df, noun_to_types):
                             new_word2_selected_text = random.choice(candidate_new_word2s)
                             current_sentence_words[original_idx2_sentence] = new_word2_selected_text
 
+        if remove_conflicts and skip_sentence:
+            continue
+
         processed_sentences_texts.append(" ".join(current_sentence_words))
         age_months_processed.append(age_month)
 
@@ -200,7 +207,7 @@ def filter_det_noun_pairs(utterances_df, noun_to_types):
         'age_months': age_months_processed
     })
 
-    new_df = remove_empty_sentences(new_df)  
+    new_df = remove_empty_sentences(new_df)
     return new_df
 
 def get_nouns(utterances):
@@ -221,7 +228,8 @@ def remove_empty_sentences(filtered_df):
     filtered_df = filtered_df[filtered_df['utt'].str.strip() != '']
     return filtered_df
 
-def run_filter_iterations(initial_utterances_df, noun_to_types, num_passes=2):
+def run_filter_iterations(initial_utterances_df, noun_to_types, num_passes=2,
+        remove_conflicts=False):
     """
     Runs the filter_det_noun_pairs function multiple times.
     After each pass (except the last), sentences are re-POS-tagged.
@@ -241,12 +249,16 @@ def run_filter_iterations(initial_utterances_df, noun_to_types, num_passes=2):
     else:
         current_df = initial_utterances_df.copy()
 
+    num_passes = num_passes
+    if remove_conflicts:
+        num_passes = 1
+
     for i in range(num_passes):
         logging.info(f"\n>>>> Starting Filtering Pass {i + 1} of {num_passes} <<<<\n")
 
         # Run the main filtering function
         # It's assumed that filter_det_noun_pairs returns a df with 'utt' and 'age_months'
-        df_after_pass = filter_det_noun_pairs(current_df, noun_to_types)
+        df_after_pass = filter_det_noun_pairs(current_df, noun_to_types, remove_conflicts)
 
         if i < num_passes - 1:
             # If it's not the last pass, re-tag the sentences for the next pass
