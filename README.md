@@ -41,7 +41,12 @@ python train_bert_model.py unfiltered
 The resulting models are stored in the models folder.
 
 ### Exploratory functions
-The files exploratory.py, checking.py and overall_performance.py are for exploratory data analysis. Exploratory.py checks how many unique nouns are seen with a determiner in the data, and divides this into groups of 'seen with a', 'seen with the' and 'seen with both'. Checking.py is for finding how many nouns in the training data appear with 'a', 'the' or both. Overall_performance tests the fully trained unrestricted model on sentences with DET + NOUN or DET + x + NOUN where x is any word that is not a NOUN. 
+The files exploratory.py, checking.py and overall_performance.py are for exploratory data analysis. Exploratory.py checks how many unique nouns are seen with a determiner in the data, and divides this into groups of 'seen with a', 'seen with the' and 'seen with both'. Checking.py is for finding how many nouns in the training data appear with 'a', 'the' or both. 
+
+Overall_performance tests the fully trained unrestricted model on sentences with DET + NOUN or DET + x + NOUN where x is any word that is not a NOUN. It outputs a confusion matrix and also a graph of productive determiner use. The first time you run this, run it without arguments to create a sub-testset. Then you run it by providing the name of the model you want to test, like this:
+```
+python overall_performance --model_type filtered_0_model_up_to_58_months
+```
 
 ### Creating test sets
 To create test sets, you run create_test.py. By default it creates a test set containing all relevant sentences. If you want test sets where each noun is seen only once in each test set, you run it like this:
