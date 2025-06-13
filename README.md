@@ -3,7 +3,7 @@ This project studies the role of the type of child-directed input in computation
 
 ## Getting started
 ### Preparing the data
-First, make sure you have the ldp data downloaded and stored in the 'data' folder. Make sure to name the file 'ldp_data.csv'. You will also need the first names dataset, so download that (see link at the bottom of this README) and store it as 'first_names.csv' in the data folder as well. 
+First, make sure you have the ldp data downloaded and stored in the 'data' folder (you might need to create this folder in the root directory). Make sure to name the file 'ldp_data.csv'. You will also need the first names dataset, so download that (see link at the bottom of this README) and store it as 'first_names.csv' in the data folder as well. 
 Then, navigate to the 'code' folder in your terminal. From there, run: 
 ```
 python main_preprocessing.py
