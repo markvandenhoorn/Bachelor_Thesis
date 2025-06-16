@@ -1,5 +1,5 @@
 """
-Name: main.py
+Name: main_preprocess.py
 Author: Mark van den Hoorn
 Desc: Does all data preprocessing, creating datasets for model training etc. Uses
 the other utility files to achieve this.

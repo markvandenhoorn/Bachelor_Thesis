@@ -1,11 +1,13 @@
+"""
+Name: exploratory.py
+Author: Mark van den Hoorn
+Desc: Finds how many nouns are seen with the, a or both and prints it.
+"""
+
 import os
-from tokenizers import BertWordPieceTokenizer
-import nltk
-import pandas as pd
-import spacy
-from tqdm import tqdm
-from collections import defaultdict
 import ast
+import pandas as pd
+from collections import defaultdict
 
 def count_nouns_with_determiners(tagged_utterances):
     """
@@ -54,7 +56,7 @@ def main():
     current_wd = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(current_wd, '../data/pos_tagged_data.txt')
 
-    # Read the tagged utterances column and convert string representation to actual list
+    # read the tagged utterances column and convert string representation to actual list
     df = pd.read_csv(file_path, header=None, names=['utt', 'age', 'tagged'], keep_default_na=False)
     df['tagged'] = df['tagged'].apply(safe_literal_eval)
 

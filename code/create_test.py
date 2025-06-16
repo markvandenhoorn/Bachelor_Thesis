@@ -15,12 +15,16 @@ from tqdm import tqdm
 from utils import set_wd
 
 def create_test_set(child_df, parent_df, noun_to_types, age_ranges, lookahead=2, unique_nouns=True):
-    from collections import defaultdict
-
+    """
+    Filters out sentences of children that contain determiner + noun constructions
+    of which the noun is seen in the model's training data, and was seen with
+    just one determiner.
+    """
     valid_dets = {'a', 'the'}
     results_by_age = {}
     unambiguous_nouns_all = {noun for noun, types in noun_to_types.items() if len(types) == 1}
 
+    # loop over ages
     for age_limit in tqdm(age_ranges, desc="Processing test sets by age"):
         parent_subset = parent_df[parent_df['age_months'] <= age_limit]
         training_nouns = set()
@@ -31,6 +35,7 @@ def create_test_set(child_df, parent_df, noun_to_types, age_ranges, lookahead=2,
             except Exception:
                 continue
 
+            # find determiner noun pairing
             for idx, (word, pos) in enumerate(tagged):
                 if pos == 'DET' and word.lower() in valid_dets:
                     for offset in range(1, lookahead + 1):
@@ -51,6 +56,7 @@ def create_test_set(child_df, parent_df, noun_to_types, age_ranges, lookahead=2,
             except Exception:
                 continue
 
+            # find out if noun is in training with one determiner
             for idx, (word, pos) in enumerate(tagged):
                 if pos == 'DET' and word.lower() in valid_dets:
                     for offset in range(1, lookahead + 1):
@@ -95,6 +101,7 @@ def main():
         (dicts["75"], 75),
     ]
 
+    # create test sets for every model
     for pair_dict, label in dicts_with_labels:
         test_set_complete = create_test_set(
             pos_tagged_child, pos_tagged_parent,

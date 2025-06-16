@@ -8,6 +8,10 @@ import argparse
 nlp = spacy.load("en_core_web_sm")
 
 def analyze_determiner_noun_usage_spacy(df, lookahead=4):
+    """
+    Find out which determiners every noun is seen with after they were already
+    filtered.
+    """
     valid_determiner_words = {"a", "the"}
     noun_to_determiners_seen = defaultdict(set)
 
@@ -20,24 +24,28 @@ def analyze_determiner_noun_usage_spacy(df, lookahead=4):
             if word.lower() in valid_determiner_words:
                 current_det_word = word.lower()
 
-                # Look ahead up to N words to find a noun (not just anything after DT)
+                # look ahead up to N words to find a noun (not just anything after DT)
                 for j in range(idx + 1, min(idx + 1 + lookahead, len(sentence_tags))):
                     next_word, next_pos = sentence_tags[j]
 
-                    # Ensure next word is really used as a noun
+                    # ensure next word is really used as a noun
                     if next_pos.startswith("NOUN"):
                         noun = next_word.lower()
                         noun_to_determiners_seen[noun].add(current_det_word)
                         break
-                    # Optionally skip if next word is an adjective or verb
+                    # optionally skip if next word is an adjective or verb
                     elif next_pos.startswith(("ADJ", "VERB")):
                         continue
                     else:
-                        break  # Stop if it's something else like a preposition or punctuation
+                        # stop if it's something else like a preposition or punctuation
+                        break
 
     return noun_to_determiners_seen
 
 def print_determiner_usage_summary(noun_to_determiners_seen):
+    """
+    Print how many nouns are seen with both a and the per dataset.
+    """
     nouns_with_a_only = 0
     nouns_with_the_only = 0
     nouns_with_both = 0
@@ -83,7 +91,6 @@ def main():
     args = parser.parse_args()
 
     filter_level = args.filter_level
-
 
     # Run the analysis
     for number in ["14", "18", "22", "26", "30", "34", "38", "42", "46", "50", "54", "58"]:

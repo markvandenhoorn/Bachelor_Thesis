@@ -4,12 +4,10 @@ Author: Mark van den Hoorn
 Desc: Utility file for file handling and importing and data handling.
 """
 import os
-import random
 import pandas as pd
 import spacy
-from tqdm import tqdm
 import re
-import html
+from tqdm import tqdm
 
 def set_wd():
     """
