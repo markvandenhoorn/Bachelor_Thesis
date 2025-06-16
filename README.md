@@ -3,7 +3,7 @@ This project studies the role of the type of child-directed input in computation
 
 ## Getting started
 ### Installing dependencies
-This codebase was entire written in Python 3.10.8. Requirements.txt contains all the necessary packages to run the code succesfully. These can be easily installed using pip by using this instruction:
+This codebase was entirely written in Python 3.10.8. Requirements.txt contains all the necessary packages to run the code succesfully. These can be easily installed using pip by using this instruction:
 ```
 pip install -r requirements.txt
 ```
