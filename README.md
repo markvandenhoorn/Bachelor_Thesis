@@ -2,6 +2,17 @@
 This project studies the role of the type of child-directed input in computationally modelling determiner use.
 
 ## Getting started
+### Installing dependencies
+This codebase was entire written in Python 3.10.8. Requirements.txt contains all the necessary packages to run the code succesfully. These can be easily installed using pip by using this instruction:
+```
+pip install -r requirements.txt
+```
+
+Or using conda:
+
+```
+conda install --file requirements.txt
+```
 ### Preparing the data
 First, make sure you have the ldp data downloaded and stored in the 'data' folder (you might need to create this folder in the root directory). Make sure to name the file 'ldp_data.csv'. You will also need the first names dataset, so download that (see link at the bottom of this README) and store it as 'first_names.csv' in the data folder as well. 
 Then, navigate to the 'code' folder in your terminal. From there, run: 
