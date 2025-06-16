@@ -3,6 +3,7 @@ from collections import defaultdict
 from tqdm import tqdm
 from pos_tagging import pos_tagging
 import spacy
+import argparse
 
 nlp = spacy.load("en_core_web_sm")
 
@@ -76,8 +77,24 @@ def print_determiner_usage_summary(noun_to_determiners_seen):
     if list_both:
         print(f"  Examples: {', '.join(list_both[:10])}{'...' if len(list_both) > 10 else ''}")
 
-# Run the analysis
-for number in ["14", "18", "22", "26", "30", "34", "38", "42", "46", "50", "54", "58"]:
-    training_df = pd.read_csv(f"../data/filtered_train_data_25_up_to_{number}_months.txt", header = None, names = ["utt"])
-    analysis_results = analyze_determiner_noun_usage_spacy(training_df)
-    print_determiner_usage_summary(analysis_results)
+def main():
+    parser = argparse.ArgumentParser(description="Run determiner-noun analysis on training data.")
+    parser.add_argument("filter_level", choices=["0", "25", "50", "75", "unfiltered"], help="Filtering level or 'unfiltered'")
+    args = parser.parse_args()
+
+    filter_level = args.filter_level
+
+
+    # Run the analysis
+    for number in ["14", "18", "22", "26", "30", "34", "38", "42", "46", "50", "54", "58"]:
+        if filter_level == "unfiltered":
+            file_path = f"../data/unfiltered_train_data_up_to_{number}_months.txt"
+        else:
+            file_path = f"../data/filtered_train_data_{filter_level}_up_to_{number}_months.txt"
+
+        training_df = pd.read_csv(file_path, header = None, names = ["utt"])
+        analysis_results = analyze_determiner_noun_usage_spacy(training_df)
+        print_determiner_usage_summary(analysis_results)
+
+if __name__ == "__main__":
+    main()

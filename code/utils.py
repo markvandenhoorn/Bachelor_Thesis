@@ -36,7 +36,6 @@ def import_data(filename):
     Reads in the data, drops NA, removes masks and replaces an with a.
     """
     data = pd.read_csv(filename, index_col=0)
-    #data = data.sample(n=100000, random_state=42)
     parent_data = data.dropna(subset=["p_utts", "age_months"])
     child_data = data.dropna(subset=["c_utts", "age_months"])
 

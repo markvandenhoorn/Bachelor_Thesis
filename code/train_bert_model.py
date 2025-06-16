@@ -154,7 +154,7 @@ def train_bert_incremental(modelconfig, trainingconfig, path_to_data, output_pat
         plt.title(f"Total Training (Model type {data_type})")
         plt.xlabel("Global Steps")
         plt.ylabel("Loss")
-        full_loss_path = os.path.join(output_path, f"{data_type}_full_training_loss.png")
+        full_loss_path = os.path.join(output_path, '..', 'output', f"{data_type}_full_training_loss.png")
         plt.savefig(full_loss_path)
         plt.close()
 

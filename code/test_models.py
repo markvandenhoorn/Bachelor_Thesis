@@ -8,10 +8,13 @@ import matplotlib.pyplot as plt
 from utils import set_wd
 from transformers import BertForMaskedLM, BertTokenizer
 from collections import defaultdict
+from scipy.stats import ttest_ind
 
 # set wd and set device to GPU if possible
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 set_wd()
+output_dir = os.path.join("..", "output")
+os.makedirs(output_dir, exist_ok=True)
 
 # load dictionary of noun to assigned determiner
 with open("determiner_dicts.pkl", "rb") as f:
@@ -57,7 +60,7 @@ for test_file in test_files:
 
     # load in test data
     file_path = os.path.join(DATA_DIR, test_file)
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, decimal=',')
     df["tagged"] = df["tagged"].apply(ast.literal_eval)
 
     sentences = df["utt"].tolist()
@@ -196,13 +199,61 @@ for test_file in test_files:
 # save to CSV
 df = pd.DataFrame(results)
 df.sort_values(["model_type", "age"], inplace=True)
-csv_path = os.path.join(BASE_DIR, "misclassification_ratios.csv")
+
+# Compute summary statistics per model type
+summary_stats = df.groupby("model_type").agg({
+    "total_misclassified": ["mean", "std"],
+    "determiner_accuracy": ["mean", "std"],
+    "overall_accuracy": ["mean", "std"],
+    "pred_a_or_the": "sum",
+    "total_predictions": "sum"
+}).reset_index()
+
+# Flatten multi-level column names
+summary_stats.columns = ['model_type', 'misclass_mean', 'misclass_std',
+                         'det_acc_mean', 'det_acc_std',
+                         'overall_acc_mean', 'overall_acc_std',
+                         'total_determiner_preds', 'total_preds']
+
+# Save to CSV
+summary_csv_path = os.path.join(output_dir, "summary_statistics_by_model_type.csv")
+summary_stats.to_csv(summary_csv_path, index=False)
+print(f"Saved summary statistics to {summary_csv_path}")
+
+# Compare misclassification ratio across model types pairwise
+model_types = df["model_type"].unique()
+ttest_results = []
+
+for i, m1 in enumerate(model_types):
+    for m2 in model_types[i+1:]:
+        group1 = pd.to_numeric(df[df["model_type"] == m1]["total_misclassified"], errors='coerce')
+        group2 = pd.to_numeric(df[df["model_type"] == m2]["total_misclassified"], errors='coerce')
+        stat, pval = ttest_ind(group1.dropna(), group2.dropna(), equal_var=False)
+        ttest_results.append({
+            "model_type_1": m1,
+            "model_type_2": m2,
+            "t_stat": stat,
+            "p_value": pval
+        })
+
+# Save t-test results
+ttest_df = pd.DataFrame(ttest_results)
+ttest_csv_path = os.path.join(output_dir, "ttest_generalization_ratios.csv")
+ttest_df.to_csv(ttest_csv_path, index=False)
+print(f"Saved t-test results to {ttest_csv_path}")
+
+csv_path = os.path.join(output_dir, "misclassification_ratios.csv")
 df.to_csv(csv_path, index=False)
 print(f"Saved summary to {csv_path}")
 
-# plot per model type
-output_dir = os.path.join(BASE_DIR, "plots")
-os.makedirs(output_dir, exist_ok=True)
+# plot colors
+custom_colors = {
+    0: "#cadcff",
+    25: "#c5ffed",
+    50: "#9dbaf4",
+    75: "#70b4e5",
+    100: "#2dad9d"
+}
 
 # plot misclassification ratios
 for model_type in df["model_type"].unique():
@@ -273,3 +324,84 @@ for model_type in df["model_type"].unique():
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f"prediction_ratios_{model_type}.png"))
     plt.close()
+
+# Plot: Total Generalization Ratio Across Model Types
+plt.figure()
+for model_type in df["model_type"].unique():
+    subset = df[df["model_type"] == model_type]
+    color = custom_colors.get(model_type, None)
+    plt.plot(subset["age"], subset["total_misclassified"], label=f"Model {model_type}", marker='o', color = color)
+plt.title("Generalization Ratio")
+plt.xlabel("Age (months)")
+plt.ylabel("Generalization Ratio")
+plt.ylim(0, 1)
+plt.grid(True)
+plt.legend(title="Model Type")
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "total_generalization_ratio_all_models.png"))
+plt.close()
+
+# Plot: Determiner Prediction Accuracy Across Model Types
+plt.figure()
+for model_type in df["model_type"].unique():
+    subset = df[df["model_type"] == model_type]
+    color = custom_colors.get(model_type, None)
+    plt.plot(subset["age"], subset["determiner_accuracy"], label=f"Model {model_type}", marker='s', color = color)
+plt.title("Determiner Accuracy")
+plt.xlabel("Age (months)")
+plt.ylabel("Accuracy (Given Determiner Prediction)")
+plt.ylim(0, 1)
+plt.grid(True)
+plt.legend(title="Model Type")
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "determiner_accuracy_all_models.png"))
+plt.close()
+
+# plot total generalization amount grouped
+plt.figure()
+for model_type in df["model_type"].unique():
+    subset = df[df["model_type"] == model_type]
+    total_generalizations = subset["a_to_the"] + subset["the_to_a"]
+    color = custom_colors.get(model_type, None)
+    plt.plot(subset["age"], total_generalizations, label=f"Model {model_type}", marker='o', color=color)
+plt.title("Total Generalization Count")
+plt.xlabel("Age (months)")
+plt.ylabel("Generalized Predictions (Count)")
+plt.grid(True)
+plt.legend(title="Model Type")
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "total_generalization_count_all_models.png"))
+plt.close()
+
+# Plot: Any Determiner Prediction Ratio Across Model Types
+plt.figure()
+for model_type in df["model_type"].unique():
+    subset = df[df["model_type"] == model_type]
+    color = custom_colors.get(model_type, None)
+    det_ratio = (subset["a_predictions"] + subset["the_predictions"]) / subset["total_predictions"]
+    plt.plot(subset["age"], det_ratio, label=f"Model {model_type}", marker='o', color=color)
+plt.title("Ratio of Any Determiner Prediction Across Model Types")
+plt.xlabel("Age (months)")
+plt.ylabel("Determiner Prediction Ratio")
+plt.ylim(0, 1)
+plt.grid(True)
+plt.legend(title="Model Type")
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "any_determiner_prediction_ratio_all_models.png"))
+plt.close()
+
+# Error bar plot: Mean and std of total misclassified per model
+plt.figure()
+plt.bar(summary_stats["model_type"].astype(str),
+        summary_stats["misclass_mean"],
+        yerr=summary_stats["misclass_std"],
+        capsize=5,
+        color=[custom_colors.get(mt, "#cccccc") for mt in summary_stats["model_type"]])
+plt.title("Avg. Total Generalized Ratio by Model Type")
+plt.xlabel("Model Type")
+plt.ylabel("Mean Generalization Ratio")
+plt.ylim(0, 1)
+plt.grid(axis='y')
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "mean_misclassification_ratio_per_model.png"))
+plt.close()

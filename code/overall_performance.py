@@ -215,14 +215,14 @@ def plot_flexible_use(child_data, model_data, model_name, current_wd):
     plt.errorbar(age_c, med_c, yerr=[err_lower_c, err_upper_c], fmt='-o', label='Children', color='orange', capsize=5)
     plt.errorbar(age_m, med_m, yerr=[err_lower_m, err_upper_m], fmt='-d', label='Model', color='deepskyblue', capsize=5)
 
-    plt.axhline(0, linestyle='--', color='black', linewidth=0.5)
+    plt.axhline(2, linestyle='--', color='black', linewidth=0.5)
     plt.xlabel("Age (months old)")
     plt.ylabel("Median noun types with both 'a' and 'the'")
     plt.title("Median Use of Both Determiners for a Noun")
     plt.legend()
     plt.tight_layout()
 
-    save_path = os.path.join(current_wd, '..', 'models', f"both_det_use_{model_name}.png")
+    save_path = os.path.join(current_wd, '..', 'output', f"both_det_use_{model_name}.png")
     plt.savefig(save_path)
     plt.show()
 
@@ -239,7 +239,7 @@ def plot_confusion_matrix(gold_dets, predicted_dets, model_name, current_wd):
     plt.title(f"LDP Corpus\nOverall accuracy: {acc:.2%}\nCoverage: {coverage:.2%}")
     plt.tight_layout()
 
-    save_path = os.path.join(current_wd, '..', 'models', f"overall_performance_{model_name}.png")
+    save_path = os.path.join(current_wd, '..', 'output', f"overall_performance_{model_name}.png")
     plt.savefig(save_path)
     plt.show()
 
